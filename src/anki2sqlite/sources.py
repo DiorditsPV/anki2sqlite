@@ -34,7 +34,7 @@ class MissingDependencyError(RuntimeError):
     """An optional dependency is required for this input format."""
 
 
-def _decompress_zstd(data: bytes) -> bytes:
+def _import_zstandard():
     try:
         import zstandard
     except ImportError as exc:
@@ -42,25 +42,39 @@ def _decompress_zstd(data: bytes) -> bytes:
             "this file uses Anki's newer zstd-compressed format; "
             "install the optional dependency with: pip install anki2sqlite[zstd]"
         ) from exc
-    return zstandard.ZstdDecompressor().decompress(data)
+    return zstandard
+
+
+def _extract_member(zf: zipfile.ZipFile, member: str, out: Path) -> None:
+    """Stream a zip member to disk, decompressing zstd for .anki21b.
+
+    Anki's exporter writes zstd frames without the content size in the frame
+    header, so one-shot decompression APIs would fail; streaming handles both.
+    """
+    with zf.open(member) as src_fh, open(out, "wb") as dst_fh:
+        if member.endswith(".anki21b"):
+            zstandard = _import_zstandard()
+            zstandard.ZstdDecompressor().copy_stream(src_fh, dst_fh)
+        else:
+            shutil.copyfileobj(src_fh, dst_fh)
 
 
 def _materialize(src: Path, workdir: Path) -> Path:
     """Produce a plain SQLite file inside workdir from any supported input."""
     if zipfile.is_zipfile(src):
-        with zipfile.ZipFile(src) as zf:
-            names = set(zf.namelist())
-            member = next((m for m in ZIP_MEMBERS if m in names), None)
-            if member is None:
-                raise ValueError(
-                    f"{src.name}: no collection member found in archive "
-                    f"(expected one of {', '.join(ZIP_MEMBERS)})"
-                )
-            data = zf.read(member)
-        if member.endswith(".anki21b"):
-            data = _decompress_zstd(data)
         out = workdir / "collection.sqlite"
-        out.write_bytes(data)
+        try:
+            with zipfile.ZipFile(src) as zf:
+                names = set(zf.namelist())
+                member = next((m for m in ZIP_MEMBERS if m in names), None)
+                if member is None:
+                    raise ValueError(
+                        f"{src.name}: no collection member found in archive "
+                        f"(expected one of {', '.join(ZIP_MEMBERS)})"
+                    )
+                _extract_member(zf, member, out)
+        except zipfile.BadZipFile as exc:
+            raise ValueError(f"{src.name}: corrupt archive ({exc})") from exc
         return out
 
     with open(src, "rb") as fh:

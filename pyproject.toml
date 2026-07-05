@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "anki2sqlite"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Convert Anki collections into a clean, analytics-friendly SQLite database"
 readme = "README.md"
 license = { text = "MIT" }
@@ -33,6 +33,9 @@ classifiers = [
     "Topic :: Database",
     "Topic :: Education",
 ]
+dependencies = [
+    "tzdata; platform_system == 'Windows'",  # zoneinfo has no system tz db there
+]
 
 [project.optional-dependencies]
 zstd = ["zstandard>=0.18"]
@@ -43,7 +46,11 @@ anki2sqlite = "anki2sqlite.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/DiorditsPV/anki2sqlite"
+Repository = "https://github.com/DiorditsPV/anki2sqlite"
 Issues = "https://github.com/DiorditsPV/anki2sqlite/issues"
+
+[tool.hatch.version]
+path = "src/anki2sqlite/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/anki2sqlite"]

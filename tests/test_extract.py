@@ -69,7 +69,7 @@ class TestRows:
     def test_notes(self, source):
         conn, _ = source
         notes = list(extract.iter_notes(conn))
-        assert len(notes) == 2
+        assert len(notes) == 3
         n1 = next(n for n in notes if n.id == fx.NOTE_1)
         assert n1.guid == "abcd1234"
         assert n1.mid == fx.BASIC_MID
@@ -80,7 +80,8 @@ class TestRows:
     def test_cards(self, source):
         conn, which = source
         cards = {c.id: c for c in extract.iter_cards(conn)}
-        assert len(cards) == 4
+        assert len(cards) == 5
+        assert (cards[fx.CARD_FILTERED].odid, cards[fx.CARD_FILTERED].odue) == (101, 11)
         c1 = cards[fx.CARD_REVIEW]
         assert (c1.nid, c1.did, c1.ord) == (fx.NOTE_1, 101, 0)
         assert (c1.type, c1.queue, c1.due, c1.ivl, c1.factor) == (2, 2, 10, 15, 2500)

@@ -43,7 +43,7 @@ class TestStructure:
 
     def test_counts_returned(self, built):
         _, counts, _ = built
-        assert counts == {"decks": 4, "note_types": 2, "notes": 2, "cards": 4, "reviews": 3}
+        assert counts == {"decks": 5, "note_types": 2, "notes": 3, "cards": 5, "reviews": 3}
 
     def test_meta(self, built):
         db, _, which = built
@@ -162,6 +162,17 @@ class TestCards:
         assert c["interval_days"] == pytest.approx(600 / 86_400)
         assert c["template_name"] == "Cloze"  # cloze ords all use the single template
         assert c["original_deck_id"] is None
+        assert c["original_due_date"] is None
+        assert c["raw_odue"] == 0
+
+    def test_card_in_filtered_deck_keeps_original_due(self, built):
+        db, _, _ = built
+        c = one(db, "SELECT * FROM cards WHERE card_id=?", fx.CARD_FILTERED)
+        assert c["deck_id"] == fx.FILTERED_DECK_ID
+        assert c["original_deck_id"] == 101
+        assert c["due_date"] == "2020-01-04"  # position inside the filtered deck
+        assert c["original_due_date"] == "2020-01-12"  # home-deck due, from odue
+        assert c["raw_odue"] == 11
 
 
 class TestReviews:
@@ -203,7 +214,7 @@ class TestViews:
     def test_v_cards(self, built):
         db, _, _ = built
         rows = db.execute("SELECT * FROM v_cards ORDER BY card_id").fetchall()
-        assert len(rows) == 4
+        assert len(rows) == 5
         assert rows[0]["deck"] == "Spanish::Verbs"
         assert rows[0]["note_type"] == "Basic"
         assert rows[0]["note"] == "hola!"
@@ -228,8 +239,11 @@ class TestViews:
         assert row["cards"] == 2
         assert row["review_cards"] == 2
         assert row["suspended_cards"] == 1
-        empty = one(db, "SELECT * FROM v_deck_stats WHERE deck='Cram'")
+        cram = one(db, "SELECT * FROM v_deck_stats WHERE deck='Cram'")
+        assert cram["cards"] == 1
+        empty = one(db, "SELECT * FROM v_deck_stats WHERE deck=?", fx.EMPTY_DECK_NAME)
         assert empty["cards"] == 0
+        assert empty["new_cards"] == 0
 
     def test_no_views_option(self, legacy_db, tmp_path):
         db, _ = convert_fixture(legacy_db, tmp_path, views=False)
@@ -259,8 +273,8 @@ class TestRobustness:
         src.close()
 
         db, counts = convert_fixture(legacy_db, tmp_path)
-        assert counts["cards"] == 5
-        assert counts["notes"] == 3
+        assert counts["cards"] == 6
+        assert counts["notes"] == 4
         n = one(db, "SELECT fields FROM notes WHERE note_id=777")
         assert json.loads(n["fields"]) == {"field_0": "a", "field_1": "b"}
 
@@ -274,4 +288,24 @@ class TestRobustness:
         build.build_database(conn, out, overwrite=True)
         conn.close()
         db = sqlite3.connect(out)
-        assert db.execute("SELECT COUNT(*) FROM notes").fetchone()[0] == 2
+        assert db.execute("SELECT COUNT(*) FROM notes").fetchone()[0] == 3
+
+    def test_failed_build_leaves_no_partial_file(self, legacy_db, tmp_path):
+        src = sqlite3.connect(legacy_db)
+        extract.prepare_connection(src)
+        src.execute("DROP TABLE revlog")
+        out = tmp_path / "o.db"
+        with pytest.raises(sqlite3.OperationalError):
+            build.build_database(src, out)
+        src.close()
+        assert not out.exists()
+
+    def test_source_name_recorded_in_meta(self, legacy_db, tmp_path):
+        conn = sqlite3.connect(legacy_db)
+        extract.prepare_connection(conn)
+        out = tmp_path / "o.db"
+        build.build_database(conn, out, source_name="legacy.anki2")
+        conn.close()
+        db = sqlite3.connect(out)
+        meta = dict(db.execute("SELECT key, value FROM meta"))
+        assert meta["source_file"] == "legacy.anki2"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
 from zoneinfo import ZoneInfoNotFoundError
@@ -69,6 +70,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except (FileNotFoundError, ValueError, MissingDependencyError) as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except sqlite3.Error as exc:
+        print(f"error: cannot read {src.name} as an Anki collection ({exc})", file=sys.stderr)
         return 1
 
     if not args.quiet:

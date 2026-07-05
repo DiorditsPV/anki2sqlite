@@ -66,6 +66,7 @@ says exactly what to install.
 | `type` 0-3 | `card_state`: new / learning / review / relearning |
 | `queue` -3..4 | `queue` label + `is_suspended` / `is_buried` flags |
 | `due` (queue-dependent) | review → `due_date` date; learning → datetime; new → `new_position`; suspended/buried resolved via card type; implausible values → NULL (raw kept) |
+| `odid` / `odue` (filtered decks) | `original_deck_id` + `original_due_date` (decoded with the card type's natural queue) |
 | `flds` `\x1f`-joined | `notes.fields` JSON object + `note_fields` long rows (`value_html` + stripped `value_text`) |
 | `tags` space-padded string | `notes.tags` JSON array + `note_tags` long rows |
 | `revlog.ease` 1-4 (0 = manual) | `rating` + `rating_label` (NULL for manual) |

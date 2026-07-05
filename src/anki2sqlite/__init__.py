@@ -33,9 +33,15 @@ def convert(
     """
     from . import build, extract, sources
 
+    src = Path(src)
     with sources.open_collection(src) as conn:
         schema_version = extract.read_meta(conn).schema_version
         counts = build.build_database(
-            conn, dst, timezone=timezone, views=views, overwrite=overwrite
+            conn,
+            dst,
+            timezone=timezone,
+            views=views,
+            overwrite=overwrite,
+            source_name=src.name,
         )
     return ConvertResult(Path(dst), counts, schema_version)

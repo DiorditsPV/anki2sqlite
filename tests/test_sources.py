@@ -16,15 +16,23 @@ class TestConvertApi:
         assert isinstance(result, ConvertResult)
         assert result.output_path == out
         assert result.schema_version == 11
-        assert result.counts["notes"] == 2
+        assert result.counts["notes"] == 3
         assert out.exists()
 
     def test_apkg(self, legacy_db, tmp_path):
         apkg = fx.make_apkg(tmp_path / "deck.apkg", legacy_db)
         result = convert(apkg, tmp_path / "out.db")
         assert result.counts == {
-            "decks": 4, "note_types": 2, "notes": 2, "cards": 4, "reviews": 3,
+            "decks": 5, "note_types": 2, "notes": 3, "cards": 5, "reviews": 3,
         }
+
+    def test_source_file_recorded_in_meta(self, legacy_db, tmp_path):
+        import sqlite3
+
+        out = tmp_path / "out.db"
+        convert(legacy_db, out)
+        meta = dict(sqlite3.connect(out).execute("SELECT key, value FROM meta"))
+        assert meta["source_file"] == "legacy.anki2"
 
     def test_source_file_not_modified(self, modern_db, tmp_path):
         digest_before = hashlib.sha256(modern_db.read_bytes()).hexdigest()
@@ -41,13 +49,40 @@ class TestConvertApi:
         with pytest.raises(ValueError, match="SQLite"):
             convert(junk, tmp_path / "out.db")
 
+    def test_sqlite_but_not_anki(self, tmp_path):
+        import sqlite3
+
+        db = tmp_path / "random.anki2"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE foo (bar)")
+        conn.commit()
+        conn.close()
+        with pytest.raises(ValueError, match="Anki collection"):
+            convert(db, tmp_path / "out.db")
+
+    def test_corrupt_sqlite_with_valid_header(self, tmp_path):
+        import os
+
+        db = tmp_path / "corrupt.anki2"
+        db.write_bytes(b"SQLite format 3\x00" + os.urandom(400))
+        with pytest.raises(ValueError, match="Anki collection"):
+            convert(db, tmp_path / "out.db")
+
+    def test_corrupt_zip_member(self, legacy_db, tmp_path):
+        apkg = fx.make_apkg(tmp_path / "deck.apkg", legacy_db)
+        blob = bytearray(apkg.read_bytes())
+        blob[60] ^= 0xFF  # flip a byte inside the stored member data
+        apkg.write_bytes(blob)
+        with pytest.raises(ValueError, match="(?i)corrupt|bad"):
+            convert(apkg, tmp_path / "out.db")
+
     def test_overwrite_flag_passthrough(self, legacy_db, tmp_path):
         out = tmp_path / "out.db"
         convert(legacy_db, out)
         with pytest.raises(FileExistsError):
             convert(legacy_db, out)
         result = convert(legacy_db, out, overwrite=True)
-        assert result.counts["notes"] == 2
+        assert result.counts["notes"] == 3
 
 
 class TestZipMemberPriority:
@@ -69,16 +104,26 @@ class TestZipMemberPriority:
 
 
 class TestZstd:
-    def test_anki21b_roundtrip(self, modern_db, tmp_path):
+    def test_anki21b_streaming_frame_roundtrip(self, modern_db, tmp_path):
+        """Anki's exporter writes zstd frames WITHOUT the content size in the
+        header; the reader must handle those, not just one-shot frames."""
+        import io
+
         zstandard = pytest.importorskip("zstandard")
+        buf = io.BytesIO()
+        with zstandard.ZstdCompressor().stream_writer(buf, closefd=False) as writer:
+            writer.write(modern_db.read_bytes())
+        compressed = buf.getvalue()
+        params = zstandard.get_frame_parameters(compressed)
+        assert params.content_size == zstandard.CONTENTSIZE_UNKNOWN
+
         apkg = tmp_path / "new-format.colpkg"
-        compressed = zstandard.ZstdCompressor().compress(modern_db.read_bytes())
         with zipfile.ZipFile(apkg, "w") as zf:
             zf.writestr("collection.anki21b", compressed)
             zf.writestr("meta", b"\x08\x03")
         result = convert(apkg, tmp_path / "out.db")
         assert result.schema_version == 18
-        assert result.counts["notes"] == 2
+        assert result.counts["notes"] == 3
 
     def test_anki21b_without_zstandard_gives_hint(self, modern_db, tmp_path, monkeypatch):
         import builtins

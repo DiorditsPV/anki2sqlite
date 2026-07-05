@@ -78,7 +78,11 @@ class TestErrors:
 
 class TestEntryPoint:
     def test_console_script(self):
-        exe = sys.executable.rsplit("/", 1)[0] + "/anki2sqlite"
+        import shutil
+        from pathlib import Path
+
+        exe = shutil.which("anki2sqlite", path=str(Path(sys.executable).parent))
+        assert exe is not None
         proc = subprocess.run([exe, "--version"], capture_output=True, text=True)
         assert proc.returncode == 0
         assert __version__ in proc.stdout

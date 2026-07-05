@@ -28,11 +28,13 @@ CLOZE_MID = 1002
 
 NOTE_1 = 1_580_000_000_001  # Basic, tags, HTML in field
 NOTE_2 = 1_580_000_000_002  # Cloze
+NOTE_3 = 1_580_000_000_003  # Basic, currently sitting in the filtered deck
 
 CARD_REVIEW = 1_580_000_001_001  # note 1 ord 0: review card in Spanish::Verbs
 CARD_SUSPENDED = 1_580_000_001_002  # note 1 ord 1: suspended review card
 CARD_NEW = 1_580_000_001_003  # note 2 ord 0: new card, position 5
 CARD_LEARNING = 1_580_000_001_004  # note 2 ord 1: learning card, due = epoch
+CARD_FILTERED = 1_580_000_001_005  # note 3 ord 0: review card moved into Cram
 
 REVIEW_1 = 1_590_000_000_001  # good review of CARD_REVIEW
 REVIEW_2 = 1_590_000_000_002  # "again" learning step, negative interval
@@ -45,8 +47,10 @@ DECKS = {
     100: "Spanish",
     101: "Spanish::Verbs",
     200: "Cram",  # filtered
+    300: "Archive",  # no cards
 }
 FILTERED_DECK_ID = 200
+EMPTY_DECK_NAME = "Archive"
 
 COMMON_DDL = """
 CREATE TABLE col (
@@ -124,6 +128,10 @@ def _insert_shared_rows(conn, *, review_card_data="", new_card_data=""):
                 NOTE_2, "efgh5678", CLOZE_MID, CRT + 90_000, -1,
                 "", "{{c1::gato}} y {{c2::perro}}\x1fnota", "gato y perro", 0, 0, "",
             ),
+            (
+                NOTE_3, "ijkl9012", BASIC_MID, CRT + 95_000, -1,
+                " spanish ", "tercero\x1fthird", "tercero", 0, 0, "",
+            ),
         ],
     )
     conn.executemany(
@@ -139,6 +147,10 @@ def _insert_shared_rows(conn, *, review_card_data="", new_card_data=""):
              0, 0, 0, 0, 0, 0, new_card_data),
             (CARD_LEARNING, NOTE_2, 1, 1, CRT + 100_000, -1, 1, 1, LEARNING_DUE,
              -600, 2500, 1, 0, 1001, 0, 0, 0, ""),
+            # review card currently gathered into the filtered deck: odid/odue
+            # point back at the home deck and the original day-based due
+            (CARD_FILTERED, NOTE_3, FILTERED_DECK_ID, 0, CRT + 100_000, -1, 2, 2, 3,
+             9, 2400, 2, 0, 0, 11, 101, 0, ""),
         ],
     )
     conn.executemany(

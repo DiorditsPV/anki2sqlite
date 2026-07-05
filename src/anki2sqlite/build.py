@@ -102,6 +102,7 @@ CREATE TABLE cards (
     lapses           INTEGER NOT NULL,
     flag             INTEGER NOT NULL,  -- 0 none, 1-7 the colored flags
     original_deck_id INTEGER,  -- set while the card sits in a filtered deck
+    original_due_date TEXT,    -- the home-deck due, decoded from odue
     fsrs_stability   REAL,     -- FSRS memory state, when present
     fsrs_difficulty  REAL,
     fsrs_desired_retention REAL,
@@ -109,6 +110,7 @@ CREATE TABLE cards (
     raw_type   INTEGER NOT NULL,
     raw_queue  INTEGER NOT NULL,
     raw_due    INTEGER NOT NULL,
+    raw_odue   INTEGER NOT NULL,
     raw_ivl    INTEGER NOT NULL,
     raw_factor INTEGER NOT NULL
 );
@@ -252,11 +254,13 @@ def build_database(
     timezone: str = "UTC",
     views: bool = True,
     overwrite: bool = False,
+    source_name: str | None = None,
 ) -> dict[str, int]:
     """Read an opened Anki collection and write the analytics DB to dst_path.
 
     Returns row counts per logical entity. Raises FileExistsError unless
-    overwrite=True when dst_path already exists.
+    overwrite=True when dst_path already exists. A failed build removes the
+    partial output file.
     """
     dst_path = Path(dst_path)
     if dst_path.exists():
@@ -281,14 +285,18 @@ def build_database(
         }
         if views:
             dst.executescript(VIEWS.replace("{rollover}", str(meta.rollover)))
-        _write_meta(dst, meta, counts, timezone, tz)
+        _write_meta(dst, meta, counts, timezone, tz, source_name)
         dst.commit()
+    except BaseException:
+        dst.close()
+        dst_path.unlink(missing_ok=True)
+        raise
     finally:
         dst.close()
     return counts
 
 
-def _write_meta(dst, meta, counts, timezone_name, tz):
+def _write_meta(dst, meta, counts, timezone_name, tz, source_name):
     from . import __version__
 
     rows = [
@@ -299,6 +307,8 @@ def _write_meta(dst, meta, counts, timezone_name, tz):
         ("collection_created_at", transform.format_timestamp(meta.created_at, tz)),
         ("rollover_hour", str(meta.rollover)),
     ]
+    if source_name:
+        rows.append(("source_file", source_name))
     rows += [(f"count_{name}", str(n)) for name, n in sorted(counts.items())]
     dst.executemany("INSERT INTO meta VALUES (?, ?)", rows)
 
@@ -396,6 +406,14 @@ def _write_cards(dst, source, note_types, meta, tz):
             due_date, position = transform.decode_due(c.type, c.queue, c.due, meta.created_at, tz)
             if position is None and "position" in data:
                 position = data["position"]
+            original_due_date = None
+            if c.odid:
+                # odue keeps the home-deck due; its meaning follows the card
+                # type, so resolve it with the type's natural queue.
+                home_queue = {0: 0, 1: 1, 2: 2, 3: 1}.get(c.type, 0)
+                original_due_date, _ = transform.decode_due(
+                    c.type, home_queue, c.odue, meta.created_at, tz
+                )
             yield (
                 c.id,
                 c.nid,
@@ -416,6 +434,7 @@ def _write_cards(dst, source, note_types, meta, tz):
                 c.lapses,
                 c.flags & 0b111,
                 c.odid or None,
+                original_due_date,
                 data.get("stability"),
                 data.get("difficulty"),
                 data.get("desired_retention"),
@@ -423,11 +442,12 @@ def _write_cards(dst, source, note_types, meta, tz):
                 c.type,
                 c.queue,
                 c.due,
+                c.odue,
                 c.ivl,
                 c.factor,
             )
 
-    sql = "INSERT INTO cards VALUES (" + ",".join("?" * 28) + ")"
+    sql = "INSERT INTO cards VALUES (" + ",".join("?" * 30) + ")"
     return _batched_insert(dst, sql, card_rows())
 
 

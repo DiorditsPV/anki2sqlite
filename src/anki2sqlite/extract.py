@@ -160,7 +160,7 @@ def notetype_is_cloze(config: bytes) -> bool:
         for field_num, wire_type, value in _iter_proto_fields(bytes(config)):
             if field_num == 1 and wire_type == 0:
                 return value == 1
-    except ValueError:
+    except (ValueError, TypeError):
         pass
     return False
 
@@ -173,7 +173,7 @@ def deck_is_filtered(kind: bytes) -> bool:
                 return False
             if field_num == 2:
                 return True
-    except ValueError:
+    except (ValueError, TypeError):
         pass
     return False
 
@@ -182,7 +182,13 @@ def deck_is_filtered(kind: bytes) -> bool:
 
 
 def read_meta(conn: sqlite3.Connection) -> Meta:
-    ver, crt, conf_json = conn.execute("SELECT ver, crt, conf FROM col").fetchone()
+    try:
+        row = conn.execute("SELECT ver, crt, conf FROM col").fetchone()
+    except sqlite3.DatabaseError as exc:
+        raise ValueError(f"not a valid Anki collection ({exc})") from exc
+    if row is None:
+        raise ValueError("not a valid Anki collection (empty col table)")
+    ver, crt, conf_json = row
 
     rollover = None
     if _has_table(conn, "config"):

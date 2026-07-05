@@ -150,8 +150,9 @@ WHERE value_text LIKE '%ubiquitous%';
   `raw_ivl`, `raw_factor`, ...) so you can always drop back to Anki's
   original encoding.
 - **`due_date`** is a date for review cards and a datetime for learning
-  cards; for cards currently in a filtered deck it reflects the filtered
-  position, with the original deck in `original_deck_id`.
+  cards. For cards currently in a filtered deck it reflects the filtered
+  scheduling, while `original_deck_id` and `original_due_date` keep the
+  home deck and its due.
 - **Not converted:** media files, deleted-item tombstones (`graves`), and
   scheduler configuration (deck options) — they carry little analytical
   value. Old Anki 1.x `.anki` files are not supported.
