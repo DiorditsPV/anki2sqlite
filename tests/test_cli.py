@@ -82,3 +82,11 @@ class TestEntryPoint:
         proc = subprocess.run([exe, "--version"], capture_output=True, text=True)
         assert proc.returncode == 0
         assert __version__ in proc.stdout
+
+    def test_python_dash_m(self):
+        proc = subprocess.run(
+            [sys.executable, "-m", "anki2sqlite", "--version"],
+            capture_output=True, text=True,
+        )
+        assert proc.returncode == 0
+        assert __version__ in proc.stdout
