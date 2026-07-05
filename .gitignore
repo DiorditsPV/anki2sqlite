@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.DS_Store
+*.db
+*.sqlite
+*.anki2
+*.anki21
+*.anki21b
+*.apkg
+*.colpkg

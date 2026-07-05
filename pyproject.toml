@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "anki2sqlite"
+version = "0.1.0"
+description = "Convert Anki collections into a clean, analytics-friendly SQLite database"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Pavel Diordits" }]
+requires-python = ">=3.10"
+keywords = [
+    "anki",
+    "sqlite",
+    "analytics",
+    "flashcards",
+    "spaced-repetition",
+    "srs",
+    "apkg",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Education",
+]
+
+[project.optional-dependencies]
+zstd = ["zstandard>=0.18"]
+test = ["pytest>=7"]
+
+[project.scripts]
+anki2sqlite = "anki2sqlite.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/DiorditsPV/anki2sqlite"
+Issues = "https://github.com/DiorditsPV/anki2sqlite/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/anki2sqlite"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
