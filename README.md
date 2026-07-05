@@ -165,6 +165,10 @@ python -m venv .venv && .venv/bin/pip install -e '.[test,zstd]'
 .venv/bin/pytest
 ```
 
+Or via make: `make install`, `make test`, and `make convert` — the latter
+finds your most recently used Anki profile, detects the system timezone and
+writes `~/anki.db` (override with `COLLECTION=`, `OUTPUT=`, `TIMEZONE=`).
+
 Tests run against synthetic fixture collections in both source schemas —
 no personal data involved. See [docs/DESIGN.md](docs/DESIGN.md) for
 architecture notes and format details.
