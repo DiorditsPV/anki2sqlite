@@ -78,10 +78,16 @@ class TestErrors:
 
 class TestEntryPoint:
     def test_console_script(self):
+        import os
         import shutil
+        import sysconfig
         from pathlib import Path
 
-        exe = shutil.which("anki2sqlite", path=str(Path(sys.executable).parent))
+        # POSIX venvs put scripts next to the interpreter; Windows uses Scripts\.
+        search = os.pathsep.join(
+            [sysconfig.get_path("scripts"), str(Path(sys.executable).parent)]
+        )
+        exe = shutil.which("anki2sqlite", path=search)
         assert exe is not None
         proc = subprocess.run([exe, "--version"], capture_output=True, text=True)
         assert proc.returncode == 0
